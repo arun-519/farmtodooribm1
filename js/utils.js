@@ -37,11 +37,19 @@ function validatePhoneNumber(phone) {
 
   // Validate length (should be 10 digits after cleaning)
   if (cleaned.length !== 10) {
-    return {
-      isValid: false,
-      formatted: '',
-      error: 'Phone number must be 10 digits'
-    };
+    if (cleaned.length < 10) {
+      return {
+        isValid: false,
+        formatted: '',
+        error: `Phone number too short. Need ${10 - cleaned.length} more digits.`
+      };
+    } else {
+      return {
+        isValid: false,
+        formatted: '',
+        error: `Phone number too long. Remove ${cleaned.length - 10} extra digits.`
+      };
+    }
   }
 
   // Check if all characters are digits
@@ -59,7 +67,16 @@ function validatePhoneNumber(phone) {
     return {
       isValid: false,
       formatted: '',
-      error: 'Phone number must start with 6, 7, 8, or 9'
+      error: 'Indian mobile numbers must start with 6, 7, 8, or 9'
+    };
+  }
+
+  // Additional validation for common invalid patterns
+  if (cleaned === '0000000000' || cleaned === '1111111111' || cleaned === '1234567890') {
+    return {
+      isValid: false,
+      formatted: '',
+      error: 'Please enter a valid phone number'
     };
   }
 
@@ -71,6 +88,72 @@ function validatePhoneNumber(phone) {
     formatted: formatted,
     error: ''
   };
+}
+
+/**
+ * Adds real-time phone validation feedback to input fields
+ * @param {string} inputId - ID of the phone input field
+ * @param {string} errorId - ID of the error message element (optional)
+ */
+function addPhoneValidationFeedback(inputId, errorId = null) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  // Create error message element if not provided
+  let errorElement = errorId ? document.getElementById(errorId) : null;
+  if (!errorElement) {
+    errorElement = document.createElement('small');
+    errorElement.className = 'phone-validation-error';
+    errorElement.style.cssText = `
+      color: var(--error-color, #EF4444);
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+      display: block;
+    `;
+    input.parentNode.appendChild(errorElement);
+  }
+
+  // Add visual feedback styles
+  const addErrorStyle = () => {
+    input.style.borderColor = 'var(--error-color, #EF4444)';
+    input.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
+  };
+
+  const addSuccessStyle = () => {
+    input.style.borderColor = 'var(--success-color, #10B981)';
+    input.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.1)';
+  };
+
+  const removeStyles = () => {
+    input.style.borderColor = '';
+    input.style.boxShadow = '';
+  };
+
+  // Real-time validation on input
+  const validateInput = debounce(() => {
+    const phoneValue = input.value.trim();
+    
+    if (!phoneValue) {
+      errorElement.textContent = '';
+      removeStyles();
+      return;
+    }
+
+    const validation = validatePhoneNumber(phoneValue);
+    
+    if (validation.isValid) {
+      errorElement.textContent = '✓ Valid phone number';
+      errorElement.style.color = 'var(--success-color, #10B981)';
+      addSuccessStyle();
+    } else {
+      errorElement.textContent = validation.error;
+      errorElement.style.color = 'var(--error-color, #EF4444)';
+      addErrorStyle();
+    }
+  }, 300);
+
+  input.addEventListener('input', validateInput);
+  input.addEventListener('blur', validateInput);
 }
 function formatCurrency(amount) {
   if (isNaN(amount)) return "₹0.00";
@@ -627,5 +710,6 @@ export {
   ShoppingCart,
   createSimpleChart,
   getAvatarUrl,
-  validatePhoneNumber
+  validatePhoneNumber,
+  addPhoneValidationFeedback
 };
