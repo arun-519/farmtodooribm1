@@ -1,6 +1,6 @@
 import { auth } from '../auth.js';
 import { getData, saveData } from '../data.js';
-import { formatCurrency, formatDate, showNotification, debounce, cart, getAvatarUrl, validatePhoneNumber } from '../utils.js';
+import { formatCurrency, formatDate, showNotification, debounce, cart, getAvatarUrl, validatePhoneNumber, addPhoneValidationFeedback } from '../utils.js';
 
 
 
@@ -742,6 +742,9 @@ export const userDashboard = {
       // Re-render to refresh avatar preview
       userDashboard.showProfile();
     });
+
+    // Add real-time phone validation
+    addPhoneValidationFeedback('profile-phone');
   },
 
   orderProduct(productId) {
