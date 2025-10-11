@@ -1,6 +1,243 @@
 import { auth } from '../auth.js';
 import { getData, saveData } from '../data.js';
-import { formatCurrency, formatDate, showNotification, debounce, cart } from '../utils.js';
+import { formatCurrency, formatDate, showNotification, debounce, cart, getAvatarUrl, validatePhoneNumber } from '../utils.js';
+
+
+
+// ==== Email & Receipt Integration (Frontend-only) ====
+// Dynamically load external libraries if missing
+const __extLibs = {
+  emailjs: "https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js",
+  jspdf: "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
+};
+
+function __loadScriptOnce(url) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${url}"]`)) return resolve();
+    const s = document.createElement("script");
+    s.src = url; s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load " + url));
+    document.head.appendChild(s);
+  });
+}
+
+// Load libs and init EmailJS
+(async () => {
+  try {
+    await __loadScriptOnce(__extLibs.jspdf);
+    await __loadScriptOnce(__extLibs.emailjs);
+    if (window.emailjs && !window.__emailjs_inited) {
+      // TODO: Replace the public key below with your EmailJS Public Key
+      emailjs.init("XI8Nf2uR4-Sln9Biv");
+      window.__emailjs_inited = true;
+      console.log("[EmailJS] initialized");
+    }
+  } catch (e) {
+    console.warn("[Init] External libs failed to load:", e);
+  }
+})();
+
+/**
+ * Sends the "order placed" email with required fields.
+ */
+function sendOrderEmail(order) {
+  try {
+    if (!window.emailjs) return console.warn("EmailJS not loaded; skipping sendOrderEmail");
+    const templateParams = {
+      order_id: order.id,
+      customer_name: order.userName,
+      product_name: (order.items || []).map(i => i.name).join(", "),
+      order_date: order.orderDate,
+      amount: (order.orderSummary ? order.orderSummary.total : order.total) || 0,
+      company_name: "https://i.postimg.cc/02j6bY5h/Farm-To-Door.jpg"
+    };
+    // TODO: Replace with your EmailJS Service and Template IDs
+    emailjs.send("service_26cznhm", "template_pwu0cov", templateParams)
+      .then(() => console.log("✅ Order email sent for #", order.id))
+      .catch(err => console.error("❌ sendOrderEmail failed:", err));
+  } catch (e) {
+    console.error("sendOrderEmail error:", e);
+  }
+}
+
+/**
+ * Generates a PDF receipt and sends a delivery email when order is delivered.
+ */
+function handleDelivered(order) {
+  try {
+    if (window.jspdf && window.jspdf.jsPDF) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+      // Page margins and starting positions
+      const leftMargin = 40;
+      let y = 40;
+
+      // ================== HEADER ==================
+      // Logo + Title inline (emoji removed for PDF font compatibility)
+      doc.setFontSize(22);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(46, 125, 50); // greenish
+      doc.text("Farm to Door", 20, 35);
+      doc.setTextColor(0, 0, 0);
+
+      y += 40;
+
+      // Receipt metadata: number & date
+      doc.setFontSize(11);
+      doc.text(`Receipt number: ${order.id}`, leftMargin, y);
+      // Format order date as DD-MM-YYYY
+      const orderDate = new Date(order.orderDate);
+      const formattedDate = `${String(orderDate.getDate()).padStart(2, '0')}-${String(orderDate.getMonth() + 1).padStart(2, '0')}-${orderDate.getFullYear()}`;
+      doc.text(`Date of purchase: ${formattedDate}`, 360, y);
+
+      y += 30;
+
+      // Company & Bill To blocks
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text("Farm to Door", leftMargin, y);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(10);
+      doc.text("Your FarmFresh local marketplace", leftMargin, y + 14);
+      doc.text("support@farmtodoor.example", leftMargin, y + 28);
+
+      // Bill to (customer)
+      doc.setFont(undefined, 'bold');
+      doc.text("Bill To", 360, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(order.userName || "-", 360, y + 14);
+      doc.text(order.deliveryAddress || "-", 360, y + 28);
+
+      y += 50;
+
+      // ================== TABLE HEADER ==================
+      const tableLeft = leftMargin;
+      const col1 = tableLeft + 6;   // Item
+      const colQty = tableLeft + 320; // Qty
+      const colUnit = tableLeft + 380; // Unit Price
+      const colTotal = tableLeft + 480; // Total
+
+      doc.setFillColor(240, 215, 110);
+      doc.rect(tableLeft, y - 12, 520, 24, 'F');
+      doc.setDrawColor(0);
+      doc.rect(tableLeft, y - 12, 520, 24);
+
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.text("Item", col1, y + 4);
+      doc.text("Quantity", colQty, y + 4);
+      doc.text("Unit Price", colUnit, y + 4);
+      doc.text("Total", colTotal, y + 4);
+
+      // ================== TABLE ROWS ==================
+      y += 22;
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(10);
+
+      const items = order.items || [];
+      if (items.length === 0) {
+        doc.text("- nothing purchased -", col1, y + 18);
+        y += 26;
+      } else {
+        items.forEach((item) => {
+          const name = item.name || "";
+          const qty = item.quantity || 1;
+          const unit = item.price != null ? Number(item.price) : 0;
+          const lineTotal = qty * unit;
+
+          const splitName = doc.splitTextToSize(name, 290);
+          doc.text(splitName, col1, y + 12);
+
+          doc.text(String(qty).padStart(2, '0'), colQty, y + 12);
+          doc.text(`Rs ${unit.toFixed(2)}`, colUnit, y + 12);
+          doc.text(`Rs ${lineTotal.toFixed(2)}`, colTotal, y + 12);
+
+          y += (splitName.length * 12) + 10;
+          if (y > 720) {
+            doc.addPage();
+            y = 40;
+          }
+        });
+      }
+
+      // ================== SUMMARY ==================
+      y += 10;
+      const summaryX = colTotal;
+      const summaryLabelX = colUnit - 20;
+
+      const subtotal = (order.orderSummary && order.orderSummary.subtotal) ||
+        (items.reduce((s, it) => s + ((it.price || 0) * (it.quantity || 1)), 0));
+      const tax = (order.orderSummary && order.orderSummary.tax) ||
+        +(subtotal * 0.08).toFixed(2);
+      const deliveryFee = (order.orderSummary && order.orderSummary.deliveryFee) != null
+        ? order.orderSummary.deliveryFee : 2.99;
+      const total = (order.orderSummary && order.orderSummary.total) ||
+        (subtotal + tax + deliveryFee);
+
+      // Line before subtotal
+      doc.setLineWidth(0.5);
+      doc.line(tableLeft, y + 5, tableLeft + 520, y + 5);
+
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
+      doc.text("Subtotal:", summaryLabelX, y + 20);
+      doc.text(`Rs ${subtotal.toFixed(2)}`, summaryX, y + 20, { align: 'right' });
+
+      doc.text("Tax:", summaryLabelX, y + 36);
+      doc.text(`Rs ${tax.toFixed(2)}`, summaryX, y + 36, { align: 'right' });
+
+      doc.text("Delivery Fee:", summaryLabelX, y + 52);
+      doc.text(`Rs ${deliveryFee.toFixed(2)}`, summaryX, y + 52, { align: 'right' });
+
+      // Line before total
+      doc.line(tableLeft, y + 60, tableLeft + 520, y + 60);
+
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(12);
+      doc.text("TOTAL:", summaryLabelX, y + 78);
+      doc.text(`Rs ${total.toFixed(2)}`, summaryX, y + 78, { align: 'right' });
+
+      // ================== FOOTER ==================
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(11);
+      doc.text("Thank you for Shopping with Farm to Door", 300, 780, { align: 'center' });
+      doc.text("If you have questions, contact support@farmtodoor.example", 300, 795, { align: 'center' });
+
+      // Save the PDF
+      try {
+        doc.save(`Receipt_${order.id}.pdf`);
+        console.log(`✅ PDF receipt generated and downloaded for order #${order.id}`);
+      } catch (saveError) {
+        console.error("❌ Failed to save PDF:", saveError);
+        throw saveError;
+      }
+    } else {
+      console.warn("jsPDF not loaded; skipping PDF generation");
+      throw new Error("PDF generation library not available");
+    }
+
+
+    if (window.emailjs) {
+      const templateParams = {
+        order_id: order.id,
+        customer_name: order.userName,
+        product_name: (order.items || []).map(i => i.name).join(", "),
+        order_date: order.orderDate,
+        amount: (order.orderSummary ? order.orderSummary.total : order.total) || 0,
+        company_name: "🌾 Farm to Door"
+      };
+      emailjs.send("service_26cznhm", "template_pwu0cov", templateParams)
+        .then(() => console.log("✅ Delivery email sent for #", order.id))
+        .catch(err => console.error("❌ Delivery email failed:", err));
+    } else {
+      console.warn("EmailJS not loaded; skipping delivery email");
+    }
+  } catch (e) {
+    console.error("handleDelivered error:", e);
+  }
+}
 
 export const userDashboard = {
   menuItems: [
@@ -119,6 +356,7 @@ export const userDashboard = {
         </div>
         <div class="product-info">
           <h3 class="product-name">${product.name}</h3>
+          ${product.totalRatings ? `<div style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;">${'⭐'.repeat(Math.round(product.rating || 0))} ${(product.rating || 0).toFixed(1)} <small>(${product.totalRatings})</small></div>` : ''}
           <p class="product-description">${product.description}</p>
           <div style="margin-bottom: 1rem;">
             <small style="color: var(--text-secondary);">By ${product.farmerName}</small>
@@ -143,7 +381,8 @@ export const userDashboard = {
 
   showMyOrders() {
     const data = getData();
-    const userOrders = data.orders.filter(order => order.userId === auth.getCurrentUser().id);
+    const currentUser = auth.getCurrentUser();
+    const userOrders = data.orders.filter(order => order.userId === currentUser.id);
     
     const content = `
       <div class="section-header">
@@ -166,9 +405,28 @@ export const userDashboard = {
             </div>
             <div class="order-items">
               ${order.items.map(item => `
-                <div class="order-item">
-                  <span>${item.name} (x${item.quantity})</span>
-                  <span>${formatCurrency(item.price * item.quantity)}</span>
+                <div class="order-item" style="flex-direction: column; align-items: stretch; gap: 0.25rem;">
+                  <div style="display:flex; justify-content: space-between;">
+                    <span>${item.name} (x${item.quantity})</span>
+                    <span>${formatCurrency(item.price * item.quantity)}</span>
+                  </div>
+                  ${order.status === 'delivered' ? `
+                    ${item.productRating ? `
+                      <div style="color: var(--text-secondary);">
+                        Your product rating: ${'⭐'.repeat(item.productRating.rating)} (${item.productRating.rating}/5)
+                        ${item.productRating.comment ? `<div style=\"font-style: italic;\">\"${item.productRating.comment}\"</div>` : ''}
+                      </div>
+                    ` : `
+                      <div class="rating-section" style="display:flex; gap:0.5rem; align-items:center;">
+                        <label for="product-rating-${order.id}-${item.productId}">Rate product:</label>
+                        <select id="product-rating-${order.id}-${item.productId}" style="padding:0.25rem;">
+                          ${[1,2,3,4,5].map(r => `<option value=\"${r}\">${r}</option>`).join('')}
+                        </select>
+                        <input type="text" id="product-rating-comment-${order.id}-${item.productId}" placeholder="Optional comment" style="flex:1; min-width: 120px; padding: 0.25rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <button class="btn-primary btn-sm" onclick="userDashboard.submitProductRating(${order.id}, ${item.productId})">Submit</button>
+                      </div>
+                    `}
+                  ` : ''}
                 </div>
               `).join('')}
             </div>
@@ -191,6 +449,14 @@ export const userDashboard = {
             <div class="order-total">
               <span>Total: ${formatCurrency(order.orderSummary ? order.orderSummary.total : order.total)}</span>
             </div>
+            ${order.status === 'delivered' ? `
+  <div style="margin-top: 1rem;">
+    <button class="btn-secondary btn-sm" onclick="userDashboard.downloadReceipt(${order.id})">
+      📄 Download Receipt
+    </button>
+  </div>
+` : ''}
+
             <div style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
               <div>Delivery Address: ${order.deliveryAddress}</div>
               <div>Expected Delivery: ${formatDate(order.deliveryDate)}</div>
@@ -232,6 +498,8 @@ export const userDashboard = {
         });
       });
     });
+
+
   },
 
   submitRating(orderId, farmerId) {
@@ -278,6 +546,88 @@ export const userDashboard = {
     }
   },
 
+  submitProductRating(orderId, productId) {
+    const data = getData();
+    const order = data.orders.find(o => o.id === orderId);
+    const product = data.products.find(p => p.id === productId);
+    if (!order || !product) {
+      showNotification('Unable to rate product right now', 'error');
+      return;
+    }
+    // Read UI values
+    const ratingSelect = document.getElementById(`product-rating-${orderId}-${productId}`);
+    const commentInput = document.getElementById(`product-rating-comment-${orderId}-${productId}`);
+    const rating = parseInt(ratingSelect && ratingSelect.value, 10);
+    const comment = (commentInput && commentInput.value || '').trim();
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      showNotification('Please select a valid rating (1-5)', 'error');
+      return;
+    }
+
+    // Ensure product ratings array
+    if (!Array.isArray(product.ratings)) product.ratings = [];
+    product.ratings.push({
+      userId: auth.getCurrentUser().id,
+      userName: auth.getCurrentUser().name,
+      rating,
+      comment,
+      date: new Date().toISOString(),
+      orderId
+    });
+
+    // Recalculate averages
+    const total = product.ratings.reduce((s, r) => s + (r.rating || 0), 0);
+    product.totalRatings = product.ratings.length;
+    product.rating = product.totalRatings > 0 ? total / product.totalRatings : 0;
+    // Once real ratings exist, clear mock flag
+    if (product.totalRatings > 0 && product.ratingMocked) delete product.ratingMocked;
+
+    // Mark order item as rated
+    const item = (order.items || []).find(i => i.productId === productId);
+    if (item) {
+      item.productRating = { rating, comment, date: new Date().toISOString() };
+    }
+
+    saveData(data);
+    showNotification('Thanks for rating this product!');
+    this.showMyOrders();
+  },
+
+  downloadReceipt(orderId) {
+    try {
+      const data = getData();
+      const order = data.orders.find(o => o.id === orderId);
+      if (!order) {
+        showNotification('Order not found', 'error');
+        return;
+      }
+
+      // Same constraints as auto download
+      if (order.status !== 'delivered') {
+        showNotification('Receipt available only for delivered orders', 'warning');
+        return;
+      }
+
+      // Check if jsPDF is loaded
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        showNotification('PDF generation library not loaded. Please refresh the page and try again.', 'error');
+        return;
+      }
+
+      // Generate and download PDF
+      handleDelivered(order);
+      
+      // Mark receipt as downloaded
+      order.receiptSent = true;
+      saveData(data);
+
+      showNotification('Receipt downloaded successfully!');
+    } catch (e) {
+      console.error('downloadReceipt error:', e);
+      showNotification('Failed to download receipt. Please try again.', 'error');
+    }
+  },
+
   showProfile() {
     const user = auth.getCurrentUser();
     
@@ -288,6 +638,21 @@ export const userDashboard = {
       
       <div class="card">
         <form id="profile-form">
+          <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+            <img src="${getAvatarUrl(user.name, user.photo)}" alt="${user.name}" style="width:64px; height:64px; border-radius:50%; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+            <span style="display:none; font-size:2rem;">👤</span>
+            <div>
+              <div class="form-group" style="margin:0;">
+                <label for="profile-photo-url">Profile Photo URL</label>
+                <input type="url" id="profile-photo-url" placeholder="https://..." value="${user.photo || ''}">
+              </div>
+              <div class="form-group" style="margin:0.5rem 0 0;">
+                <label for="profile-photo-file">Or upload a photo</label>
+                <input type="file" id="profile-photo-file" accept="image/*">
+                <small style="display:block; color: var(--text-secondary);">We’ll host it via imgbb.</small>
+              </div>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label for="profile-name">Full Name</label>
@@ -315,25 +680,67 @@ export const userDashboard = {
     
     document.getElementById('dashboard-content').innerHTML = content;
     
-    document.getElementById('profile-form').addEventListener('submit', (e) => {
+    document.getElementById('profile-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = getData();
-      const user = data.users.find(u => u.id === auth.getCurrentUser().id);
-      if (user) {
-        user.name = document.getElementById('profile-name').value;
-        user.email = document.getElementById('profile-email').value;
-        user.phone = document.getElementById('profile-phone').value;
-        user.address = document.getElementById('profile-address').value;
-        saveData(data);
-        
-        // Update current user in auth
-        auth.currentUser = user;
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        
-        // Update user name display
-        document.getElementById('user-name').textContent = user.name;
+      const current = auth.getCurrentUser();
+      const user = data.users.find(u => u.id === current.id);
+      if (!user) return;
+
+      // Handle photo: prioritize file upload, else use URL field
+      const fileInput = document.getElementById('profile-photo-file');
+      const urlInput = document.getElementById('profile-photo-url');
+      let photoUrl = (urlInput && urlInput.value.trim()) || '';
+
+      if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('key', 'b590e39f72f27957f19dd8ec98577cfc');
+        formData.append('image', file);
+        try {
+          const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+          const result = await res.json();
+          if (result && result.data && result.data.url) {
+            photoUrl = result.data.url;
+          } else {
+            showNotification('Image upload failed — using provided URL if any', 'warning');
+          }
+        } catch (err) {
+          console.error('Profile image upload failed:', err);
+          showNotification('Image upload failed — using provided URL if any', 'warning');
+        }
       }
+
+      // Validate phone number if provided
+      const phoneValue = document.getElementById('profile-phone').value.trim();
+      if (phoneValue) {
+        const phoneValidation = validatePhoneNumber(phoneValue);
+        if (!phoneValidation.isValid) {
+          showNotification(phoneValidation.error, 'error');
+          return;
+        }
+        user.phone = phoneValidation.formatted;
+      } else {
+        user.phone = '';
+      }
+
+      user.name = document.getElementById('profile-name').value;
+      user.email = document.getElementById('profile-email').value;
+      user.address = document.getElementById('profile-address').value;
+      if (photoUrl) user.photo = photoUrl;
+      saveData(data);
+
+      // Update current user in auth
+      auth.currentUser = user;
+      localStorage.setItem('currentUser', JSON.stringify(user));
+
+      // Update user name display
+      const userNameEl = document.getElementById('user-name');
+      if (userNameEl) userNameEl.textContent = user.name;
+
       showNotification('Profile updated successfully');
+      // Re-render to refresh avatar preview
+      userDashboard.showProfile();
     });
   },
 
@@ -486,7 +893,11 @@ export const userDashboard = {
     
     // Add quantity change listener
     document.getElementById('order-quantity').addEventListener('input', (e) => {
-      const quantity = parseInt(e.target.value) || 1;
+      let quantity = parseInt(e.target.value, 10);
+      const maxQty = parseInt(String(product.stock), 10) || 0;
+      if (isNaN(quantity) || quantity < 1) quantity = 1;
+      if (maxQty > 0 && quantity > maxQty) quantity = maxQty;
+      e.target.value = quantity;
       const subtotal = product.price * quantity;
       const tax = subtotal * 0.08;
       const deliveryFee = 2.99;
@@ -499,56 +910,54 @@ export const userDashboard = {
     });
 
     // Show/Hide UPI section
-// ...existing code...
-document.querySelectorAll('input[name="payment-method"]').forEach(radio => {
-  radio.addEventListener('change', (e) => {
-    const upiSection = document.getElementById('upi-section');
-    if (e.target.value === 'upi') {
-      upiSection.style.display = 'block';
+    document.querySelectorAll('input[name="payment-method"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const upiSection = document.getElementById('upi-section');
+        if (e.target.value === 'upi') {
+          upiSection.style.display = 'block';
 
-      // Generate dynamic QR
+          // Generate dynamic QR
+          const quantity = parseInt(document.getElementById('order-quantity').value) || 1;
+          const subtotal = product.price * quantity;
+          const tax = subtotal * 0.08;
+          const deliveryFee = 2.99;
+          const total = subtotal + tax + deliveryFee;
+
+          const payeeUpi = "arunselvam519@okaxis";  // ⚡ replace with your UPI ID
+          const payeeName = "Farm to Door";
+          const transactionNote = "Farm Order Payment";
+          const upiString = `upi://pay?pa=${payeeUpi}&pn=${encodeURIComponent(payeeName)}&am=${total}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+          const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}`;
+
+          document.getElementById('upi-qr').src = qrApiUrl;
+        } else {
+          upiSection.style.display = 'none';
+        }
+      });
+    });
+
+    // Handle UPI Pay Now
+    document.getElementById('pay-upi').addEventListener('click', () => {
       const quantity = parseInt(document.getElementById('order-quantity').value) || 1;
       const subtotal = product.price * quantity;
       const tax = subtotal * 0.08;
       const deliveryFee = 2.99;
       const total = subtotal + tax + deliveryFee;
 
-      const payeeUpi = "arunselvam519@okaxis";  // ⚡ replace with your UPI ID
-      const payeeName = "Farmer Market";
-      const transactionNote = "Farm Order Payment";
-      const upiString = `upi://pay?pa=${payeeUpi}&pn=${encodeURIComponent(payeeName)}&am=${total}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}`;
+      const userUpiId = document.getElementById('upi-id').value.trim();
+      const payeeUpi = "arunselvam519@okaxis"; // ⚡ replace with your UPI ID
+      const payeeName = "Farm to Door";
 
-      document.getElementById('upi-qr').src = qrApiUrl;
-    } else {
-      upiSection.style.display = 'none';
-    }
-  });
-});
-// ...existing code...
+      if (!userUpiId) {
+        showNotification("Please enter your UPI ID", "error");
+        return;
+      }
 
-// Handle UPI Pay Now
-document.getElementById('pay-upi').addEventListener('click', () => {
-  const quantity = parseInt(document.getElementById('order-quantity').value) || 1;
-  const subtotal = product.price * quantity;
-  const tax = subtotal * 0.08;
-  const deliveryFee = 2.99;
-  const total = subtotal + tax + deliveryFee;
+      const upiLink = `upi://pay?pa=${payeeUpi}&pn=${encodeURIComponent(payeeName)}&am=${total}&cu=INR`;
 
-  const userUpiId = document.getElementById('upi-id').value.trim();
-  const payeeUpi = "farmer@upi"; // ⚡ replace with your UPI ID
-  const payeeName = "Farmer Market";
-
-  if (!userUpiId) {
-    showNotification("Please enter your UPI ID", "error");
-    return;
-  }
-
-  const upiLink = `upi://pay?pa=${payeeUpi}&pn=${encodeURIComponent(payeeName)}&am=${total}&cu=INR`;
-
-  // Redirect to UPI app (works on mobile browsers)
-  window.location.href = upiLink;
-});
+      // Redirect to UPI app (works on mobile browsers)
+      window.location.href = upiLink;
+    });
 
   },
 
@@ -562,14 +971,26 @@ document.getElementById('pay-upi').addEventListener('click', () => {
       return;
     }
     
-    const quantity = parseInt(document.getElementById('order-quantity').value);
+    const quantityRaw = document.getElementById('order-quantity').value;
+    const quantity = parseInt(quantityRaw, 10);
     const deliveryAddress = document.getElementById('delivery-address').value.trim();
     const deliveryPhone = document.getElementById('delivery-phone').value.trim();
     const deliveryName = document.getElementById('delivery-name').value.trim();
     const paymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
     
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      showNotification('Enter a valid quantity (1 or more)', 'error');
+      return;
+    }
     if (!deliveryAddress || !deliveryPhone || !deliveryName) {
       showNotification('Please fill in all delivery details', 'error');
+      return;
+    }
+    
+    // Validate phone number
+    const phoneValidation = validatePhoneNumber(deliveryPhone);
+    if (!phoneValidation.isValid) {
+      showNotification(phoneValidation.error, 'error');
       return;
     }
     
@@ -607,7 +1028,7 @@ document.getElementById('pay-upi').addEventListener('click', () => {
         quantity: quantity
       }],
       deliveryAddress: deliveryAddress,
-      deliveryPhone: deliveryPhone,
+      deliveryPhone: phoneValidation.formatted,
       paymentMethod: paymentMethod,
       orderSummary: {
         subtotal: subtotal,
@@ -626,7 +1047,7 @@ document.getElementById('pay-upi').addEventListener('click', () => {
     const userData = data.users.find(u => u.id === user.id);
     if (userData) {
       userData.address = deliveryAddress;
-      userData.phone = deliveryPhone;
+      userData.phone = phoneValidation.formatted;
       userData.name = deliveryName;
       saveData(data);
       
@@ -636,6 +1057,7 @@ document.getElementById('pay-upi').addEventListener('click', () => {
     }
     
     showNotification('Order placed successfully!');
+    try { sendOrderEmail(newOrder); } catch(e){ console.error(e); }
     this.showOrderConfirmation(newOrder);
   },
   
