@@ -1,6 +1,7 @@
 import { auth } from '../auth.js';
 import { getData, saveData } from '../data.js';
 import { formatCurrency, formatDate, showNotification, debounce, checkLowStock, createSimpleChart } from '../utils.js';
+import { getAvatarUrl } from '../utils.js';
 
 export const farmerDashboard = {
   menuItems: [
@@ -44,9 +45,17 @@ export const farmerDashboard = {
   showDashboard() {
     const data = getData();
     const farmerId = auth.getCurrentUser().id;
-    const myProducts = data.products.filter(p => p.farmerId === farmerId);
     const myOrders = data.orders.filter(o => o.farmerId === farmerId);
-    const lowStockAlerts = data.lowStockAlerts.filter(alert => alert.farmerId === farmerId);
+  // Dynamically calculate low stock based on current and initial stock
+const myProducts = data.products.filter(p => p.farmerId === farmerId);
+const lowStockAlerts = myProducts
+  .filter(p => p.initialStock && p.stock <= 0.2 * p.initialStock)
+  .map(p => ({
+    productName: p.name,
+    currentStock: p.stock,
+    threshold: Math.ceil(0.2 * p.initialStock)
+  }));
+
     
     const totalRevenue = myOrders.reduce((sum, order) => sum + (order.orderSummary ? order.orderSummary.total : order.total), 0);
     const pendingOrders = myOrders.filter(o => o.status === 'pending').length;
@@ -69,6 +78,7 @@ export const farmerDashboard = {
           </div>
         </div>
       ` : ''}
+      
       
       <div class="stats-grid">
         <div class="stat-card">
@@ -229,20 +239,27 @@ export const farmerDashboard = {
           </div>
           <div class="form-group">
             <label for="product-description">Description</label>
-            <textarea id="product-description" rows="3" required></textarea>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <textarea id="product-description" rows="3" required style="flex: 1;"></textarea>
+              <button type="button" class="btn-secondary" onclick="farmerDashboard.generateAIDescription('add')" style="height: fit-content; padding: 0.5rem;">
+                🤖 AI Generate
+              </button>
+            </div>
+            <small style="color: var(--text-secondary);">Enter product details and click AI Generate for an enhanced description</small>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label for="product-price">Price</label>
-              <input type="number" id="product-price" step="0.01" required>
+              <input type="number" id="product-price" step="0.01" min="0.01" required>
             </div>
             <div class="form-group">
               <label for="product-unit">Unit</label>
               <select id="product-unit" required>
-                <option value="per lb">per lb</option>
-                <option value="per dozen">per dozen</option>
-                <option value="per head">per head</option>
-                <option value="per bag">per bag</option>
+                <option value="per Kg">per Kg</option>
+                <option value="per lit">per lit</option>
+                <option value="per 250 g">per 250 g</option>
+                <option value="per 500 g">per 500 g</option>
+                <option value="per bunch">per bunch</option>
                 <option value="each">each</option>
               </select>
             </div>
@@ -250,18 +267,18 @@ export const farmerDashboard = {
           <div class="form-row">
             <div class="form-group">
               <label for="product-stock">Initial Stock</label>
-              <input type="number" id="product-stock" required>
+              <input type="number" id="product-stock" min="0" required>
             </div>
             <div class="form-group">
               <label for="product-low-stock">Low Stock Threshold</label>
-              <input type="number" id="product-low-stock" value="10" required>
+              <input type="number" id="product-low-stock" value="10" min="0" required>
             </div>
           </div>
           <div class="form-group">
-            <label for="product-image">Product Image URL</label>
-            <input type="url" id="product-image" placeholder="https://images.pexels.com/photos/...">
-            <small style="color: var(--text-secondary);">Use Pexels or other image URLs. Leave empty for default icon.</small>
-          </div>
+        <label for="product-image-upload">Upload Product Image</label>
+        <input type="file" id="product-image-upload" accept="image/*">
+        </div>
+
           <div class="form-group">
             <label>
               <input type="checkbox" id="product-organic"> Organic Product
@@ -276,37 +293,71 @@ export const farmerDashboard = {
     
     document.getElementById('add-product-form').addEventListener('submit', (e) => {
       e.preventDefault();
+      // Basic numeric validation before handling
+      const priceVal = parseFloat(document.getElementById('product-price').value);
+      const stockVal = parseInt(document.getElementById('product-stock').value, 10);
+      const lowStockVal = parseInt(document.getElementById('product-low-stock').value, 10);
+      if (isNaN(priceVal) || priceVal <= 0) { showNotification('Enter a valid price (> 0)', 'error'); return; }
+      if (!Number.isInteger(stockVal) || stockVal < 0) { showNotification('Enter a valid initial stock (0 or more)', 'error'); return; }
+      if (!Number.isInteger(lowStockVal) || lowStockVal < 0) { showNotification('Enter a valid low stock threshold (0 or more)', 'error'); return; }
       this.handleAddProduct();
     });
   },
 
-  handleAddProduct() {
-    const data = getData();
-    const farmer = auth.getCurrentUser();
-    
-    const newProduct = {
-      id: Math.max(...data.products.map(p => p.id), 0) + 1,
-      name: document.getElementById('product-name').value,
-      description: document.getElementById('product-description').value,
-      price: parseFloat(document.getElementById('product-price').value),
-      unit: document.getElementById('product-unit').value,
-      category: document.getElementById('product-category').value,
-      farmerId: farmer.id,
-      farmerName: farmer.farmName || farmer.name,
-      stock: parseInt(document.getElementById('product-stock').value),
-      lowStockThreshold: parseInt(document.getElementById('product-low-stock').value),
-      image: document.getElementById('product-image').value || 'https://images.pexels.com/photos/1656663/pexels-photo-1656663.jpeg?auto=compress&cs=tinysrgb&w=400',
-      isOrganic: document.getElementById('product-organic').checked,
-      harvestDate: new Date().toISOString().split('T')[0],
-      addedDate: new Date().toISOString()
-    };
-    
-    data.products.push(newProduct);
-    saveData(data);
-    
-    showNotification('Product added successfully');
-    this.showMyProducts();
-  },
+  async handleAddProduct() {
+   const data = getData();
+  const farmer = auth.getCurrentUser();
+  const productName = document.getElementById('product-name').value.trim().toLowerCase();
+  const fileInput = document.getElementById('product-image-upload');
+  let imageUrl = ''; // final link
+
+  if (fileInput && fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const formData = new FormData();
+
+    // 🔑 Replace YOUR_IMGBB_API_KEY with your real key from imgbb.com
+    formData.append('key', 'b590e39f72f27957f19dd8ec98577cfc');
+    formData.append('image', file);
+
+    try {
+      const res = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await res.json();
+      imageUrl = result.data.url; // hosted image link
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      showNotification('Image upload failed — using default image', 'warning');
+    }
+  }
+
+  // fallback if no image uploaded
+  if (!imageUrl) imageUrl = 'https://via.placeholder.com/150?text=No+Image';
+
+  const newProduct = {
+    id: Math.max(...data.products.map(p => p.id), 0) + 1,
+    name: productName,
+    description: document.getElementById('product-description').value,
+    price: Math.max(0, parseFloat(document.getElementById('product-price').value) || 0),
+    unit: document.getElementById('product-unit').value,
+    category: document.getElementById('product-category').value,
+    farmerId: farmer.id,
+    farmerName: farmer.farmName || farmer.name,
+    initialStock: Math.max(0, parseInt(document.getElementById('product-stock').value, 10) || 0),
+    stock: Math.max(0, parseInt(document.getElementById('product-stock').value, 10) || 0),
+    lowStockThreshold: Math.max(0, parseInt(document.getElementById('product-low-stock').value, 10) || 0),
+    image: imageUrl, // ✅ hosted image URL here
+    isOrganic: document.getElementById('product-organic').checked,
+    harvestDate: new Date().toISOString().split('T')[0],
+    addedDate: new Date().toISOString()
+  };
+
+  data.products.push(newProduct);
+  saveData(data);
+  showNotification('Product added successfully');
+  this.showMyProducts();
+},
 
   editProduct(productId) {
     const data = getData();
@@ -341,20 +392,27 @@ export const farmerDashboard = {
           </div>
           <div class="form-group">
             <label for="edit-product-description">Description</label>
-            <textarea id="edit-product-description" rows="3" required>${product.description}</textarea>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <textarea id="edit-product-description" rows="3" required style="flex: 1;">${product.description}</textarea>
+              <button type="button" class="btn-secondary" onclick="farmerDashboard.generateAIDescription('edit')" style="height: fit-content; padding: 0.5rem;">
+                🤖 AI Generate
+              </button>
+            </div>
+            <small style="color: var(--text-secondary);">Enter product details and click AI Generate for an enhanced description</small>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label for="edit-product-price">Price</label>
-              <input type="number" id="edit-product-price" step="0.01" value="${product.price}" required>
+              <input type="number" id="edit-product-price" step="0.01" min="0.01" value="${product.price}" required>
             </div>
             <div class="form-group">
               <label for="edit-product-unit">Unit</label>
               <select id="edit-product-unit" required>
-                <option value="per lb" ${product.unit === 'per lb' ? 'selected' : ''}>per lb</option>
-                <option value="per dozen" ${product.unit === 'per dozen' ? 'selected' : ''}>per dozen</option>
-                <option value="per head" ${product.unit === 'per head' ? 'selected' : ''}>per head</option>
-                <option value="per bag" ${product.unit === 'per bag' ? 'selected' : ''}>per bag</option>
+                <option value="per Kg" ${product.unit === 'per Kg' ? 'selected' : ''}>per Kg</option>
+                <option value="per 250 g" ${product.unit === 'per 250 g' ? 'selected' : ''}>per 250 g</option>
+                <option value="per 500 g" ${product.unit === 'per 500 g' ? 'selected' : ''}>per 500 g</option>
+                <option value="per lit " ${product.unit === 'per lit ' ? 'selected' : ''}>per lit</option>
+                <option value="per bunch " ${product.unit === 'per bunch ' ? 'selected' : ''}>per bunch</option>
                 <option value="each" ${product.unit === 'each' ? 'selected' : ''}>each</option>
               </select>
             </div>
@@ -362,11 +420,11 @@ export const farmerDashboard = {
           <div class="form-row">
             <div class="form-group">
               <label for="edit-product-stock">Stock</label>
-              <input type="number" id="edit-product-stock" value="${product.stock}" required>
+              <input type="number" id="edit-product-stock" min="0" value="${product.stock}" required>
             </div>
             <div class="form-group">
               <label for="edit-low-stock-threshold">Low Stock Alert Threshold</label>
-              <input type="number" id="edit-low-stock-threshold" value="${product.lowStockThreshold || 10}" required>
+              <input type="number" id="edit-low-stock-threshold" min="0" value="${product.lowStockThreshold || 10}" required>
             </div>
           </div>
           <div class="form-group">
@@ -397,14 +455,21 @@ export const farmerDashboard = {
     const product = data.products.find(p => p.id === productId);
     
     if (product) {
+      const priceVal = parseFloat(document.getElementById('edit-product-price').value);
+      const stockVal = parseInt(document.getElementById('edit-product-stock').value, 10);
+      const lowStockVal = parseInt(document.getElementById('edit-low-stock-threshold').value, 10);
+      if (isNaN(priceVal) || priceVal <= 0) { showNotification('Enter a valid price (> 0)', 'error'); return; }
+      if (!Number.isInteger(stockVal) || stockVal < 0) { showNotification('Enter a valid stock (0 or more)', 'error'); return; }
+      if (!Number.isInteger(lowStockVal) || lowStockVal < 0) { showNotification('Enter a valid low stock threshold (0 or more)', 'error'); return; }
+
       product.name = document.getElementById('edit-product-name').value;
       product.description = document.getElementById('edit-product-description').value;
-      product.price = parseFloat(document.getElementById('edit-product-price').value);
+      product.price = Math.max(0, priceVal);
       product.unit = document.getElementById('edit-product-unit').value;
       product.category = document.getElementById('edit-product-category').value;
-      product.stock = parseInt(document.getElementById('edit-product-stock').value);
+      product.stock = Math.max(0, stockVal);
       product.image = document.getElementById('edit-product-image').value;
-      product.lowStockThreshold = parseInt(document.getElementById('edit-low-stock-threshold').value);
+      product.lowStockThreshold = Math.max(0, lowStockVal);
       product.isOrganic = document.getElementById('edit-product-organic').checked;
       
       saveData(data);
@@ -502,12 +567,16 @@ export const farmerDashboard = {
 
   updateOrderStatus(orderId, status) {
     const data = getData();
-    const order = data.orders.find(o => o.id === orderId);
+    // normalize types so matching works whether id is string or number
+    const order = data.orders.find(o => String(o.id) === String(orderId));
     if (order) {
       order.status = status;
       saveData(data);
       showNotification(`Order #${orderId} status updated to ${status}`);
       this.showOrders();
+    } else {
+      console.error('Order not found when trying to update status:', orderId, data.orders);
+      showNotification('Failed to update order status (order not found)', 'error');
     }
   },
 
@@ -590,6 +659,20 @@ export const farmerDashboard = {
       
       <div class="card">
         <form id="farmer-profile-form">
+          <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+            <img src="${getAvatarUrl(user.name, user.photo)}" alt="${user.name}" style="width:64px; height:64px; border-radius:50%; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+            <span style="display:none; font-size:2rem;">👤</span>
+            <div>
+              <div class="form-group" style="margin:0;">
+                <label for="farmer-photo-url">Profile Photo URL</label>
+                <input type="url" id="farmer-photo-url" placeholder="https://..." value="${user.photo || ''}">
+              </div>
+              <div class="form-group" style="margin:0.5rem 0 0;">
+                <label for="farmer-photo-file">Or upload a photo</label>
+                <input type="file" id="farmer-photo-file" accept="image/*">
+              </div>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label for="farmer-name">Full Name</label>
@@ -652,27 +735,181 @@ export const farmerDashboard = {
     
     document.getElementById('dashboard-content').innerHTML = content;
     
-    document.getElementById('farmer-profile-form').addEventListener('submit', (e) => {
+    document.getElementById('farmer-profile-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = getData();
-      const user = data.users.find(u => u.id === auth.getCurrentUser().id);
-      if (user) {
-        user.name = document.getElementById('farmer-name').value;
-        user.farmName = document.getElementById('farm-name').value;
-        user.email = document.getElementById('farmer-email').value;
-        user.phone = document.getElementById('farmer-phone').value;
-        user.location = document.getElementById('farm-location').value;
-        user.description = document.getElementById('farm-description').value;
-        saveData(data);
-        
-        // Update current user in auth
-        auth.currentUser = user;
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        
-        // Update user name display
-        document.getElementById('user-name').textContent = user.name;
+      const current = auth.getCurrentUser();
+      const user = data.users.find(u => u.id === current.id);
+      if (!user) return;
+
+      // Handle photo upload or URL
+      const fileInput = document.getElementById('farmer-photo-file');
+      const urlInput = document.getElementById('farmer-photo-url');
+      let photoUrl = (urlInput && urlInput.value.trim()) || '';
+
+      if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('key', 'b590e39f72f27957f19dd8ec98577cfc');
+        formData.append('image', file);
+        try {
+          const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+          const result = await res.json();
+          if (result && result.data && result.data.url) {
+            photoUrl = result.data.url;
+          } else {
+            showNotification('Image upload failed — using provided URL if any', 'warning');
+          }
+        } catch (err) {
+          console.error('Farmer profile image upload failed:', err);
+          showNotification('Image upload failed — using provided URL if any', 'warning');
+        }
       }
+
+      user.name = document.getElementById('farmer-name').value;
+      user.farmName = document.getElementById('farm-name').value;
+      user.email = document.getElementById('farmer-email').value;
+      user.phone = document.getElementById('farmer-phone').value;
+      user.location = document.getElementById('farm-location').value;
+      user.description = document.getElementById('farm-description').value;
+      if (photoUrl) user.photo = photoUrl;
+      saveData(data);
+
+      // Update current user in auth
+      auth.currentUser = user;
+      localStorage.setItem('currentUser', JSON.stringify(user));
+
+      // Update user name display
+      const nameEl = document.getElementById('user-name');
+      if (nameEl) nameEl.textContent = user.name;
+
       showNotification('Profile updated successfully');
+      // Re-render to refresh avatar preview
+      farmerDashboard.showProfile();
     });
+  },
+
+  async generateAIDescription(formType) {
+    const nameField = formType === 'add' ? 'product-name' : 'edit-product-name';
+    const categoryField = formType === 'add' ? 'product-category' : 'edit-product-category';
+    const priceField = formType === 'add' ? 'product-price' : 'edit-product-price';
+    const unitField = formType === 'add' ? 'product-unit' : 'edit-product-unit';
+    const organicField = formType === 'add' ? 'product-organic' : 'edit-product-organic';
+    const descriptionField = formType === 'add' ? 'product-description' : 'edit-product-description';
+    
+    const productName = document.getElementById(nameField)?.value?.trim();
+    const category = document.getElementById(categoryField)?.value;
+    const price = document.getElementById(priceField)?.value;
+    const unit = document.getElementById(unitField)?.value;
+    const isOrganic = document.getElementById(organicField)?.checked;
+    const currentDescription = document.getElementById(descriptionField)?.value?.trim();
+    
+    if (!productName) {
+      showNotification('Please enter a product name first', 'error');
+      return;
+    }
+    
+    // Show loading state
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '⏳ Generating...';
+    button.disabled = true;
+    
+    try {
+      // Prepare context for AI
+      const context = {
+        productName,
+        category: category || 'agricultural product',
+        price: price ? `$${price}` : 'competitive pricing',
+        unit: unit || 'unit',
+        isOrganic: isOrganic ? 'organic' : 'conventional',
+        currentDescription: currentDescription || 'No description provided yet'
+      };
+      
+      // Create prompt for AI
+      const prompt = `Generate a compelling product description for a farm-to-door agricultural product with these details:
+      
+Product Name: ${context.productName}
+Category: ${context.category}
+Price: ${context.price} ${context.unit}
+Type: ${context.isOrganic}
+Current Description: ${context.currentDescription}
+
+Please create a professional, engaging description (2-3 sentences) that:
+- Highlights the freshness and quality
+- Mentions the farm-to-door concept
+- Emphasizes ${context.isOrganic} growing practices
+- Appeals to health-conscious consumers
+- Uses natural, appetizing language
+
+Keep it concise but compelling, suitable for an e-commerce product listing.`;
+
+      // Call OpenAI API (using a mock response for demo purposes)
+      // In a real implementation, you would use your OpenAI API key
+      const aiDescription = await this.callOpenAIAPI(prompt);
+      
+      // Update the description field
+      document.getElementById(descriptionField).value = aiDescription;
+      showNotification('AI description generated successfully!', 'success');
+      
+    } catch (error) {
+      console.error('AI Description Generation Error:', error);
+      showNotification('Failed to generate AI description. Please try again.', 'error');
+    } finally {
+      // Restore button state
+      button.innerHTML = originalText;
+      button.disabled = false;
+    }
+  },
+
+  async callOpenAIAPI(prompt) {
+    // Mock AI response for demo purposes
+    // In a real implementation, replace this with actual OpenAI API call
+    
+    const mockResponses = [
+      "Fresh, locally-grown produce delivered directly from our farm to your door. Grown using sustainable farming practices, this premium quality product offers exceptional taste and nutritional value. Perfect for health-conscious families who value freshness and supporting local agriculture.",
+      "Hand-picked at peak ripeness and delivered fresh from our family farm. Our commitment to quality ensures you receive the finest produce with maximum nutritional benefits. Experience the difference that farm-fresh quality makes in every bite.",
+      "Premium quality produce grown with care and delivered with love. Our farm-to-door service brings you the freshest, most flavorful products while supporting sustainable agriculture. Taste the difference that comes from knowing exactly where your food comes from.",
+      "Naturally grown and carefully harvested for optimal freshness and flavor. Our farm-to-door delivery ensures you receive the highest quality produce at its nutritional peak. Perfect for those who appreciate authentic, wholesome food.",
+      "Cultivated using traditional farming methods and delivered fresh from our fields. This exceptional product represents our commitment to quality, sustainability, and bringing you the very best nature has to offer."
+    ];
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Return a random mock response
+    return mockResponses[Math.floor(Math.random() * mockResponses.length)];
+    
+    /* 
+    // Real OpenAI API implementation (uncomment and configure with your API key):
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer YOUR_OPENAI_API_KEY`
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a professional copywriter specializing in agricultural product descriptions for farm-to-door e-commerce platforms.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 150,
+        temperature: 0.7
+      })
+    });
+    
+    const data = await response.json();
+    return data.choices[0].message.content.trim();
+    */
   }
 };
+
+// Ensure farmerDashboard is available on window for inline event handlers
+if (typeof window !== 'undefined') window.farmerDashboard = farmerDashboard;
