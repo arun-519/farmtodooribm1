@@ -1,6 +1,7 @@
 import { auth } from '../auth.js';
 import { getData, saveData } from '../data.js';
 import { formatCurrency, formatDate, showNotification, debounce, createSimpleChart } from '../utils.js';
+import { getAvatarUrl } from '../utils.js';
 
 export const adminDashboard = {
   menuItems: [
@@ -199,7 +200,13 @@ export const adminDashboard = {
               
               return `
                 <tr>
-                  <td><strong>${user.name}</strong></td>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                      <img src="${getAvatarUrl(user.name, user.photo)}" alt="${user.name}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                      <span style="display:none; font-size:1.25rem;">👤</span>
+                      <strong>${user.name}</strong>
+                    </div>
+                  </td>
                   <td>${user.email}</td>
                   <td>${userOrders.length}</td>
                   <td>${formatCurrency(totalSpent)}</td>
@@ -253,7 +260,11 @@ export const adminDashboard = {
               return `
                 <tr>
                   <td>
-                    <strong>${farmer.name}</strong>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                      <img src="${getAvatarUrl(farmer.name, farmer.photo)}" alt="${farmer.name}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                      <span style="display:none; font-size:1.25rem;">👤</span>
+                      <strong>${farmer.name}</strong>
+                    </div>
                     <small style="display: block; color: var(--text-secondary);">${farmer.email}</small>
                   </td>
                   <td>${farmer.farmName || 'N/A'}</td>
