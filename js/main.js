@@ -1,6 +1,6 @@
 import { auth } from './auth.js';
 import { getData, saveData } from './data.js';
-import { showNotification, cart } from './utils.js';
+import { showNotification, cart, validatePhoneNumber } from './utils.js';
 import { userDashboard } from './dashboards/user.js';
 import { farmerDashboard } from './dashboards/farmer.js';
 import { adminDashboard } from './dashboards/admin.js';
@@ -77,10 +77,20 @@ class FarmToDoorApp {
   }
 
   handleRegister() {
+    const phoneValue = document.getElementById('register-phone').value.trim();
+    
+    // Validate phone number
+    const phoneValidation = validatePhoneNumber(phoneValue);
+    if (!phoneValidation.isValid) {
+      showNotification(phoneValidation.error, 'error');
+      return;
+    }
+
     const userData = {
       name: document.getElementById('register-name').value,
       email: document.getElementById('register-email').value,
       password: document.getElementById('register-password').value,
+      phone: phoneValidation.formatted,
       role: document.getElementById('register-role').value
     };
 
