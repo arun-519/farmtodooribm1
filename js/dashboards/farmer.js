@@ -1,6 +1,6 @@
 import { auth } from '../auth.js';
 import { getData, saveData } from '../data.js';
-import { formatCurrency, formatDate, showNotification, debounce, checkLowStock, createSimpleChart } from '../utils.js';
+import { formatCurrency, formatDate, showNotification, debounce, checkLowStock, createSimpleChart, validatePhoneNumber, addPhoneValidationFeedback } from '../utils.js';
 import { getAvatarUrl } from '../utils.js';
 
 export const farmerDashboard = {
@@ -766,10 +766,22 @@ const lowStockAlerts = myProducts
         }
       }
 
+      // Validate phone number if provided
+      const phoneValue = document.getElementById('farmer-phone').value.trim();
+      if (phoneValue) {
+        const phoneValidation = validatePhoneNumber(phoneValue);
+        if (!phoneValidation.isValid) {
+          showNotification(phoneValidation.error, 'error');
+          return;
+        }
+        user.phone = phoneValidation.formatted;
+      } else {
+        user.phone = '';
+      }
+
       user.name = document.getElementById('farmer-name').value;
       user.farmName = document.getElementById('farm-name').value;
       user.email = document.getElementById('farmer-email').value;
-      user.phone = document.getElementById('farmer-phone').value;
       user.location = document.getElementById('farm-location').value;
       user.description = document.getElementById('farm-description').value;
       if (photoUrl) user.photo = photoUrl;
@@ -787,6 +799,9 @@ const lowStockAlerts = myProducts
       // Re-render to refresh avatar preview
       farmerDashboard.showProfile();
     });
+
+    // Add real-time phone validation
+    addPhoneValidationFeedback('farmer-phone');
   },
 
   async generateAIDescription(formType) {
