@@ -1,6 +1,6 @@
 import { auth } from './auth.js';
 import { getData, saveData } from './data.js';
-import { showNotification, cart, validatePhoneNumber } from './utils.js';
+import { showNotification, cart, validatePhoneNumber, addPhoneValidationFeedback } from './utils.js';
 import { userDashboard } from './dashboards/user.js';
 import { farmerDashboard } from './dashboards/farmer.js';
 import { adminDashboard } from './dashboards/admin.js';
@@ -35,6 +35,9 @@ class FarmToDoorApp {
       e.preventDefault();
       this.handleRegister();
     });
+
+    // Add real-time phone validation to registration form
+    addPhoneValidationFeedback('register-phone');
 
     // Demo account buttons
     document.querySelectorAll('.demo-btn').forEach(btn => {
