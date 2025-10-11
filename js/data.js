@@ -43,8 +43,8 @@ const mockData = {
       id: 1,
       name: 'Organic Tomatoes',
       description: 'Fresh, juicy organic tomatoes grown without pesticides',
-      price: 4.99,
-      unit: 'per lb',
+      price: 40,
+      unit: 'per Kg',
       category: 'vegetables',
       farmerId: 2,
       farmerName: 'Green Valley Farm',
@@ -59,8 +59,8 @@ const mockData = {
       id: 2,
       name: 'Fresh Lettuce',
       description: 'Crisp romaine lettuce perfect for salads',
-      price: 2.99,
-      unit: 'per head',
+      price: 30 ,
+      unit: 'per Kg',
       category: 'vegetables',
       farmerId: 2,
       farmerName: 'Green Valley Farm',
@@ -75,8 +75,8 @@ const mockData = {
       id: 3,
       name: 'Farm Fresh Eggs',
       description: 'Free-range chicken eggs from happy hens',
-      price: 6.99,
-      unit: 'per dozen',
+      price: 6 ,
+      unit: 'per each',
       category: 'dairy',
       farmerId: 2,
       farmerName: 'Green Valley Farm',
@@ -91,8 +91,8 @@ const mockData = {
       id: 4,
       name: 'Sweet Carrots',
       description: 'Crunchy orange carrots packed with vitamins',
-      price: 3.49,
-      unit: 'per lb',
+      price: 80 ,
+      unit: 'per Kg',
       category: 'vegetables',
       farmerId: 2,
       farmerName: 'Green Valley Farm',
@@ -107,8 +107,8 @@ const mockData = {
       id: 5,
       name: 'Red Apples',
       description: 'Sweet and crisp red apples, perfect for snacking',
-      price: 5.99,
-      unit: 'per lb',
+      price: 150 ,
+      unit: 'per Kg',
       category: 'fruits',
       farmerId: 2,
       farmerName: 'Green Valley Farm',
@@ -123,8 +123,8 @@ const mockData = {
       id: 6,
       name: 'Fresh Spinach',
       description: 'Nutrient-rich baby spinach leaves',
-      price: 3.99,
-      unit: 'per bag',
+      price: 20 ,
+      unit: 'per bunch',
       category: 'vegetables',
       farmerId: 2,
       farmerName: 'Green Valley Farm',
@@ -245,6 +245,28 @@ function getData() {
         parsedData[arrayName] = mockData[arrayName] || [];
       }
     });
+    
+    // Seed temporary mock ratings for products if missing
+    let mutated = false;
+    parsedData.products = (parsedData.products || []).map(p => {
+      const product = { ...p };
+      if (typeof product.rating !== 'number' || typeof product.totalRatings !== 'number') {
+        // Generate a realistic mock between 3.8 and 4.8 with 5-50 ratings
+        const mockAvg = Math.round((3.8 + Math.random() * 1.0) * 10) / 10;
+        const mockCount = Math.floor(5 + Math.random() * 46);
+        product.rating = mockAvg;
+        product.totalRatings = mockCount;
+        product.ratingMocked = true;
+        if (!Array.isArray(product.ratings)) product.ratings = [];
+        mutated = true;
+      }
+      return product;
+    });
+
+    if (mutated) {
+      // Persist seeded mock ratings so UI is consistent across reloads
+      localStorage.setItem('farmToDoorData', JSON.stringify(parsedData));
+    }
     
     return parsedData;
   } catch (error) {
