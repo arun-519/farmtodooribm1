@@ -2,10 +2,82 @@ import { getData, saveData } from './data.js';
 import { auth } from './auth.js';
 
 // Utility functions
+function getAvatarUrl(name, photoUrl) {
+  const safePhoto = (photoUrl || '').trim();
+  if (safePhoto) return safePhoto;
+  const initials = encodeURIComponent((name || 'User').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase());
+  // Fallback avatar using ui-avatars
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=16A34A&color=ffffff&bold=true`;
+}
+
+/**
+ * Validates phone number for Indian mobile numbers
+ * Supports formats: +91XXXXXXXXXX, 91XXXXXXXXXX, XXXXXXXXXX, +91-XXXXXXXXXX
+ * @param {string} phone - Phone number to validate
+ * @returns {object} - {isValid: boolean, formatted: string, error: string}
+ */
+function validatePhoneNumber(phone) {
+  if (!phone || typeof phone !== 'string') {
+    return {
+      isValid: false,
+      formatted: '',
+      error: 'Phone number is required'
+    };
+  }
+
+  // Remove all non-digit characters except +
+  let cleaned = phone.replace(/[^\d+]/g, '');
+  
+  // Handle different input formats
+  if (cleaned.startsWith('+91')) {
+    cleaned = cleaned.substring(3); // Remove +91
+  } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+    cleaned = cleaned.substring(2); // Remove 91
+  }
+
+  // Validate length (should be 10 digits after cleaning)
+  if (cleaned.length !== 10) {
+    return {
+      isValid: false,
+      formatted: '',
+      error: 'Phone number must be 10 digits'
+    };
+  }
+
+  // Check if all characters are digits
+  if (!/^\d{10}$/.test(cleaned)) {
+    return {
+      isValid: false,
+      formatted: '',
+      error: 'Phone number must contain only digits'
+    };
+  }
+
+  // Check if it starts with valid Indian mobile prefixes
+  const validPrefixes = ['6', '7', '8', '9'];
+  if (!validPrefixes.includes(cleaned[0])) {
+    return {
+      isValid: false,
+      formatted: '',
+      error: 'Phone number must start with 6, 7, 8, or 9'
+    };
+  }
+
+  // Format the phone number for display
+  const formatted = `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+
+  return {
+    isValid: true,
+    formatted: formatted,
+    error: ''
+  };
+}
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
+  if (isNaN(amount)) return "₹0.00";
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD'
+    currency: 'INR',
+    minimumFractionDigits: 2
   }).format(amount);
 }
 
@@ -376,8 +448,7 @@ class ShoppingCart {
     // Check for low stock after purchase
     checkLowStock();
 
-    // Send WhatsApp notification
-    this.sendWhatsAppNotification(newOrder, user);
+  
 
     this.clear();
     showNotification('Order placed successfully!');
@@ -386,79 +457,6 @@ class ShoppingCart {
     this.showOrderConfirmation(newOrder);
   }
 
-  sendWhatsAppNotification(order, user) {
-    const itemsText = order.items.map(item => `• ${item.name} (x${item.quantity}) - ${formatCurrency(item.price * item.quantity)}`).join('\n');
-
-    const message = `🌾 *Farm to Door - Order Confirmation*
-
-*Order #${order.id}*
-Customer: ${user ? user.name : 'Guest'}
-Phone: ${user && user.phone ? user.phone : 'Not provided'}
-
-*Items Ordered:*
-${itemsText}
-
-*Order Summary:*
-Subtotal: ${formatCurrency(order.orderSummary.subtotal)}
-Tax: ${formatCurrency(order.orderSummary.tax)}
-Delivery Fee: ${formatCurrency(order.orderSummary.deliveryFee)}
-*Total: ${formatCurrency(order.orderSummary.total)}*
-
-*Delivery Address:*
-${order.deliveryAddress}
-
-*Expected Delivery:* ${formatDate(order.deliveryDate)}
-
-Thank you for choosing Farm to Door! 🚚`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
-
-    // Prepare HTML-safe preview: convert *bold* to <strong>...</strong> for preview only
-    const previewHtml = message
-      .replace(/\n/g, '<br>')
-      .replace(/\*(.*?)\*/g, '<strong>$1</strong>');
-
-    // Show WhatsApp notification option
-    const whatsappModal = document.createElement('div');
-    whatsappModal.className = 'modal active';
-    whatsappModal.innerHTML = `
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>📱 Share Order via WhatsApp</h3>
-          <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p>Would you like to share your order details via WhatsApp?</p>
-          <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin: 1rem 0; font-size: 0.9rem; max-height: 200px; overflow-y: auto;">
-            ${previewHtml}
-          </div>
-        </div>
-        <div class="modal-footer">
-          <a href="${whatsappUrl}" target="_blank" id="whatsapp-share-btn" class="btn-primary">
-            📱 Share on WhatsApp
-          </a>
-          <button class="btn-secondary" id="whatsapp-skip-btn">
-            Skip
-          </button>
-        </div>
-      </div>
-    `;
-
-    setTimeout(() => {
-      document.body.appendChild(whatsappModal);
-
-      const shareBtn = document.getElementById('whatsapp-share-btn');
-      const skipBtn = document.getElementById('whatsapp-skip-btn');
-
-      if (shareBtn) {
-        shareBtn.addEventListener('click', () => whatsappModal.remove());
-      }
-      if (skipBtn) {
-        skipBtn.addEventListener('click', () => whatsappModal.remove());
-      }
-    }, 500);
-  }
 
   showOrderConfirmation(order) {
     const confirmationModal = document.createElement('div');
@@ -483,12 +481,6 @@ Thank you for choosing Farm to Door! 🚚`;
               <p><strong>Delivery Address:</strong> ${order.deliveryAddress}</p>
             </div>
             
-            <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-              <p style="margin: 0; font-size: 0.9rem; color: var(--text-secondary);">
-                📧 You will receive order updates via notifications. 
-                📱 You can also share this order via WhatsApp with friends and family!
-              </p>
-            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -518,16 +510,6 @@ Thank you for choosing Farm to Door! 🚚`;
     if (contBtn) {
       contBtn.addEventListener('click', () => confirmationModal.remove());
     }
-  }
-
-  clear() {
-    this.items = [];
-    this.saveCart();
-    this.updateCartDisplay();
-  }
-
-  saveCart() {
-    localStorage.setItem('shoppingCart', JSON.stringify(this.items));
   }
 
   loadCart() {
@@ -643,5 +625,7 @@ export {
   removeExpiredProducts,
   checkLowStock,
   ShoppingCart,
-  createSimpleChart
+  createSimpleChart,
+  getAvatarUrl,
+  validatePhoneNumber
 };
