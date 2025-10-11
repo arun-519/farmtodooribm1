@@ -1,5 +1,6 @@
 import { getData, saveData } from './data.js';
 
+
 class AuthManager {
   constructor() {
     this.currentUser = null;
@@ -33,10 +34,11 @@ class AuthManager {
     
     // Create new user
     const newUser = {
-      id: Math.max(...data.users.map(u => u.id), 0) + 1,
+      id: Math.max(...data.users.map(u => u.id),  0) + 1,
       name: userData.name,
       email: userData.email,
       password: userData.password,
+      phone: userData.phone || '',
       role: userData.role,
       joinedDate: new Date().toISOString().split('T')[0]
     };
