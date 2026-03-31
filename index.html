@@ -63,78 +63,87 @@
 
     <!-- Authentication Screen -->
     <div id="auth-screen" class="screen">
-        <div class="auth-container">
-            <div class="auth-header">
-                <a href="#" id="back-to-home" class="back-link">← Back</a>
-                <h1>🌾 Farm to Door</h1>
-                <p>Fresh produce delivered directly from farm to your doorstep</p>
-            </div>
-            
-            <div class="auth-tabs">
-                <button class="tab-button active" data-tab="login">Login</button>
-                <button class="tab-button" data-tab="register">Register</button>
-            </div>
-
-            <!-- Login Form -->
-            <div id="login-form" class="auth-form active">
-                <h2>Welcome Back</h2>
-                <form>
-                    <div class="form-group">
-                        <label for="login-email">Email</label>
-                        <input type="email" id="login-email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="login-password">Password</label>
-                        <input type="password" id="login-password" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="login-role">Login as</label>
-                        <select id="login-role" required>
-                            <option value="">Select role</option>
-                            <option value="user">Customer</option>
-                            <option value="farmer">Farmer</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-primary">Login</button>
-                </form>
-                
-                <div class="demo-accounts">
-                    <p>Demo Accounts:</p>
-                    <div class="demo-buttons">
-                        <button class="demo-btn" data-role="user">Demo Customer</button>
-                        <button class="demo-btn" data-role="farmer">Demo Farmer</button>
-                        <button class="demo-btn" data-role="admin">Demo Admin</button>
-                    </div>
+        <div class="auth-wrapper">
+            <div class="auth-visual">
+                <div class="visual-content">
+                    <div class="visual-icon">🌾</div>
+                    <h2>Harvested with ♥️</h2>
+                    <p>Experience the freshest, highest quality produce directly from local farmers.</p>
                 </div>
             </div>
+            <div class="auth-container">
+                <div class="auth-header">
+                    <a href="#" id="back-to-home" class="back-link">← Back</a>
+                    <h1>🌾 Farm to Door</h1>
+                    <p>Fresh produce delivered directly from farm to your doorstep</p>
+                </div>
+                
+                <div class="auth-tabs">
+                    <button class="tab-button active" data-tab="login">Login</button>
+                    <button class="tab-button" data-tab="register">Register</button>
+                </div>
 
-            <!-- Register Form -->
-            <div id="register-form" class="auth-form">
-                <h2>Join Our Platform</h2>
-                <form>
-                    <div class="form-group">
-                        <label for="register-name">Full Name</label>
-                        <input type="text" id="register-name" required>
+                <!-- Login Form -->
+                <div id="login-form" class="auth-form active">
+                    <h2>Welcome Back</h2>
+                    <form>
+                        <div class="form-group">
+                            <label for="login-email">Email</label>
+                            <input type="email" id="login-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <input type="password" id="login-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-role">Login as</label>
+                            <select id="login-role" required>
+                                <option value="">Select role</option>
+                                <option value="user">Customer</option>
+                                <option value="farmer">Farmer</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-primary">Login</button>
+                    </form>
+                    
+                    <div class="demo-accounts">
+                        <p>Demo Accounts:</p>
+                        <div class="demo-buttons">
+                            <button class="demo-btn" data-role="user">Demo Customer</button>
+                            <button class="demo-btn" data-role="farmer">Demo Farmer</button>
+                            <button class="demo-btn" data-role="admin">Demo Admin</button>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="register-email">Email</label>
-                        <input type="email" id="register-email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-password">Password</label>
-                        <input type="password" id="register-password" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-role">Register as</label>
-                        <select id="register-role" required>
-                            <option value="">Select role</option>
-                            <option value="user">Customer</option>
-                            <option value="farmer">Farmer</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-primary">Register</button>
-                </form>
+                </div>
+
+                <!-- Register Form -->
+                <div id="register-form" class="auth-form">
+                    <h2>Join Our Platform</h2>
+                    <form>
+                        <div class="form-group">
+                            <label for="register-name">Full Name</label>
+                            <input type="text" id="register-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-email">Email</label>
+                            <input type="email" id="register-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-password">Password</label>
+                            <input type="password" id="register-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-role">Register as</label>
+                            <select id="register-role" required>
+                                <option value="">Select role</option>
+                                <option value="user">Customer</option>
+                                <option value="farmer">Farmer</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-primary">Register</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
