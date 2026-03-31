@@ -316,13 +316,15 @@ body {
 .table-container {
   background: var(--bg-primary);
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-md);
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 600px;
 }
 
 .table th,
@@ -374,7 +376,15 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
   .navbar {
+    flex-direction: column;
     padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .nav-actions {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
   }
   
   .dashboard-container {
@@ -384,6 +394,23 @@ body {
   .sidebar {
     width: 100%;
     padding: 1rem 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .sidebar-content {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 1rem;
+  }
+  
+  .menu-item {
+    margin-bottom: 0;
+    white-space: nowrap;
+    width: auto;
+    padding: 0.6rem 1rem;
   }
   
   .main-content {
@@ -392,7 +419,12 @@ body {
   
   .grid-2,
   .grid-3,
-  .grid-4 {
+  .grid-4,
+  .stats-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .form-group {
+    margin-bottom: 1rem;
   }
 }
