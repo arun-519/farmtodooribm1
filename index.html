@@ -8,12 +8,64 @@
     <link rel="stylesheet" href="styles/auth.css">
     <link rel="stylesheet" href="styles/dashboard.css">
     <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/home.css">
 </head>
 <body>
+    <!-- Home Screen -->
+    <div id="home-screen" class="screen active">
+        <header class="home-header">
+            <div class="home-nav">
+                <div class="nav-brand">
+                    <h2>🌾 Farm to Door</h2>
+                </div>
+                <div class="nav-links">
+                    <button class="btn-secondary" id="nav-login-btn">Login</button>
+                    <button class="btn-primary" id="nav-register-btn">Sign Up</button>
+                </div>
+            </div>
+        </header>
+        <main class="home-main">
+            <section class="hero">
+                <div class="hero-content">
+                    <h1>Fresh Produce, Delivered from <span>Farm</span> to Your Doorstep</h1>
+                    <p>Connect directly with local farmers, enjoy farm-fresh organic food, and support sustainable agriculture in your community. Let's build a healthier future together.</p>
+                    <div class="hero-buttons">
+                        <button class="btn-primary btn-large" id="hero-get-started">Get Started</button>
+                        <button class="btn-secondary btn-large" id="hero-learn-more">Learn More</button>
+                    </div>
+                </div>
+                <div class="hero-image">
+                    <div class="hero-img-placeholder"></div>
+                </div>
+            </section>
+            <section class="features">
+                <div class="feature-card">
+                    <div class="feature-icon">🌿</div>
+                    <h3>100% Organic</h3>
+                    <p>Guaranteed fresh and organic produce harvested daily from local farmers you can trust.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚚</div>
+                    <h3>Fast Delivery</h3>
+                    <p>Direct delivery to ensure maximum freshness and quality right at your doorstep.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤝</div>
+                    <h3>Fair Trade</h3>
+                    <p>Empowering local farmers with fair prices and direct access to consumers.</p>
+                </div>
+            </section>
+        </main>
+        <footer class="home-footer">
+            <p>&copy; 2026 Farm to Door Platform. All rights reserved.</p>
+        </footer>
+    </div>
+
     <!-- Authentication Screen -->
-    <div id="auth-screen" class="screen active">
+    <div id="auth-screen" class="screen">
         <div class="auth-container">
             <div class="auth-header">
+                <a href="#" id="back-to-home" class="back-link">← Back</a>
                 <h1>🌾 Farm to Door</h1>
                 <p>Fresh produce delivered directly from farm to your doorstep</p>
             </div>
@@ -72,11 +124,6 @@
                     <div class="form-group">
                         <label for="register-password">Password</label>
                         <input type="password" id="register-password" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-phone">Phone Number</label>
-                        <input type="tel" id="register-phone" placeholder="Enter 10-digit mobile number" required>
-                        <small style="color: var(--text-secondary);">Format: 9876543210 or +91 9876543210</small>
                     </div>
                     <div class="form-group">
                         <label for="register-role">Register as</label>
