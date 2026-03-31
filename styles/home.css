@@ -206,3 +206,34 @@
     margin: 2rem;
   }
 }
+
+@media (max-width: 768px) {
+  .home-nav {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+  
+  .hero-img-placeholder {
+    height: 300px;
+  }
+  
+  .features {
+    margin: 1rem;
+    padding: 2rem 1rem;
+  }
+  
+  .feature-card {
+    padding: 1.5rem;
+  }
+}
+
