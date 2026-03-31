@@ -1,6 +1,6 @@
 import { auth } from './auth.js';
 import { getData, saveData } from './data.js';
-import { showNotification, cart, validatePhoneNumber, addPhoneValidationFeedback } from './utils.js';
+import { showNotification, cart } from './utils.js';
 import { userDashboard } from './dashboards/user.js';
 import { farmerDashboard } from './dashboards/farmer.js';
 import { adminDashboard } from './dashboards/admin.js';
@@ -16,6 +16,31 @@ class FarmToDoorApp {
   }
 
   setupEventListeners() {
+    // Home screen buttons
+    document.getElementById('nav-login-btn')?.addEventListener('click', () => {
+      this.showAuthScreen();
+      this.switchAuthTab('login');
+    });
+    
+    document.getElementById('nav-register-btn')?.addEventListener('click', () => {
+      this.showAuthScreen();
+      this.switchAuthTab('register');
+    });
+
+    document.getElementById('hero-get-started')?.addEventListener('click', () => {
+      this.showAuthScreen();
+      this.switchAuthTab('register');
+    });
+
+    document.getElementById('hero-learn-more')?.addEventListener('click', () => {
+      document.querySelector('.features')?.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    document.getElementById('back-to-home')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.showHomeScreen();
+    });
+
     // Auth form tabs
     document.querySelectorAll('.tab-button').forEach(button => {
       button.addEventListener('click', (e) => {
@@ -35,9 +60,6 @@ class FarmToDoorApp {
       e.preventDefault();
       this.handleRegister();
     });
-
-    // Add real-time phone validation to registration form
-    addPhoneValidationFeedback('register-phone');
 
     // Demo account buttons
     document.querySelectorAll('.demo-btn').forEach(btn => {
@@ -80,20 +102,10 @@ class FarmToDoorApp {
   }
 
   handleRegister() {
-    const phoneValue = document.getElementById('register-phone').value.trim();
-    
-    // Validate phone number
-    const phoneValidation = validatePhoneNumber(phoneValue);
-    if (!phoneValidation.isValid) {
-      showNotification(phoneValidation.error, 'error');
-      return;
-    }
-
     const userData = {
       name: document.getElementById('register-name').value,
       email: document.getElementById('register-email').value,
       password: document.getElementById('register-password').value,
-      phone: phoneValidation.formatted,
       role: document.getElementById('register-role').value
     };
 
@@ -140,25 +152,33 @@ class FarmToDoorApp {
   handleLogout() {
     auth.logout();
     showNotification('Logged out successfully');
-    this.showAuthScreen();
+    this.showHomeScreen();
   }
 
   checkAuthentication() {
     if (auth.isAuthenticated()) {
       this.showDashboard();
     } else {
-      this.showAuthScreen();
+      this.showHomeScreen();
     }
   }
 
+  showHomeScreen() {
+    document.getElementById('home-screen')?.classList.add('active');
+    document.getElementById('auth-screen')?.classList.remove('active');
+    document.getElementById('dashboard-screen')?.classList.remove('active');
+  }
+
   showAuthScreen() {
-    document.getElementById('auth-screen').classList.add('active');
-    document.getElementById('dashboard-screen').classList.remove('active');
+    document.getElementById('home-screen')?.classList.remove('active');
+    document.getElementById('auth-screen')?.classList.add('active');
+    document.getElementById('dashboard-screen')?.classList.remove('active');
   }
 
   showDashboard() {
-    document.getElementById('auth-screen').classList.remove('active');
-    document.getElementById('dashboard-screen').classList.add('active');
+    document.getElementById('home-screen')?.classList.remove('active');
+    document.getElementById('auth-screen')?.classList.remove('active');
+    document.getElementById('dashboard-screen')?.classList.add('active');
     
     const user = auth.getCurrentUser();
     document.getElementById('user-name').textContent = user.name;
