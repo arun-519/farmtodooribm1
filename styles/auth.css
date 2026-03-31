@@ -1,15 +1,38 @@
 .auth-container {
-  max-width: 400px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background: var(--bg-primary);
-  border-radius: 16px;
-  box-shadow: var(--shadow-lg);
+  max-width: 420px;
+  margin: 4rem auto;
+  padding: 2.5rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 24px;
+  box-shadow: 0 10px 40px rgba(34, 197, 94, 0.1);
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(30px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .auth-header {
   text-align: center;
   margin-bottom: 2rem;
+  position: relative;
+}
+
+.back-link {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: var(--primary-color);
 }
 
 .auth-header h1 {
@@ -35,19 +58,32 @@
   border: none;
   background: none;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+  color: var(--primary-color);
+  background: rgba(34, 197, 94, 0.05);
 }
 
 .tab-button.active {
   color: var(--primary-color);
   border-bottom-color: var(--primary-color);
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 8px 8px 0 0;
 }
 
 .auth-form {
   display: none;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .auth-form.active {
