@@ -8,15 +8,24 @@
 
 .product-card {
   background: var(--bg-primary);
-  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: var(--shadow-md);
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeUp 0.5s ease-out backwards;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .product-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-8px);
   box-shadow: var(--shadow-lg);
+  border-color: rgba(34, 197, 94, 0.4);
 }
 
 .product-image {
@@ -73,9 +82,11 @@
 /* Search and Filters */
 .search-filters {
   background: var(--bg-primary);
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 1.5rem 2rem;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
   margin-bottom: 2rem;
 }
 
@@ -97,10 +108,17 @@
 /* Order Management */
 .order-card {
   background: var(--bg-primary);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.order-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
 
 .order-header {
@@ -152,10 +170,17 @@
 /* Analytics Charts */
 .chart-container {
   background: var(--bg-primary);
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: var(--shadow-md);
-  margin-bottom: 2rem;
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 2.5rem;
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 2.5rem;
+  transition: transform 0.3s ease;
+}
+
+.chart-container:hover {
+  transform: scale(1.01);
 }
 
 .chart-title {
